@@ -41,7 +41,7 @@ def search_products(query: str, limit: int = 15):
     query = query.lower().strip()
     results = []
     for p in PRODUCTS:
-        if all(word in p["name"].lower() for word in query.split()) or query in p["article"].lower():
+        if query in p["name"].lower() or query in p["article"].lower():
             results.append(p)
         if len(results) >= limit:
             break
@@ -69,22 +69,39 @@ class OrderForm(StatesGroup):
 
 order_counter = {"value": 1}
 
-def make_keyboard(options: list) -> ReplyKeyboardMarkup:
+CANCEL_BTN = "🚫 Отменить заказ"
+
+def make_keyboard(options: list, cancel: bool = True) -> ReplyKeyboardMarkup:
     buttons = [[KeyboardButton(text=opt)] for opt in options]
+    if cancel:
+        buttons.append([KeyboardButton(text=CANCEL_BTN)])
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True, one_time_keyboard=True)
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
-
-# ── /start ──────────────────────────────────────────
-@dp.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext):
+async def cancel_order(message: Message, state: FSMContext):
     await state.clear()
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="🆕 Создать заказ")]],
         resize_keyboard=True
     )
-    await message.answer("❌ Заказ отменён. Начни заново.", reply_markup=kb)
+    await message.answer("🚫 Заказ отменён. Начни заново.", reply_markup=kb)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+
+# ── /cancel ──────────────────────────────────────────
+@dp.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    await cancel_order(message, state)
+
+# ── /start ──────────────────────────────────────────
+@dp.message(Command("start"))
+async def cmd_start(message: Message, state: FSMContext):
+    await state.clear()
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🆕 Создать заказ")]],
+        resize_keyboard=True
+    )
+    await message.answer("Привет! Нажми кнопку чтобы создать заказ.", reply_markup=kb)
 
 # ── Создать заказ ────────────────────────────────────
 @dp.message(F.text == "🆕 Создать заказ")
@@ -95,23 +112,31 @@ async def start_order(message: Message, state: FSMContext):
 # ── Менеджер ─────────────────────────────────────────
 @dp.message(OrderForm.manager)
 async def set_manager(message: Message, state: FSMContext):
+    if message.text == CANCEL_BTN:
+        await cancel_order(message, state); return
     if message.text not in MANAGERS:
         await message.answer("Выбери из списка:", reply_markup=make_keyboard(MANAGERS))
         return
     await state.update_data(manager=message.text, items=[])
     await state.set_state(OrderForm.client_name)
-    await message.answer("Введи имя клиента:", reply_markup=ReplyKeyboardRemove())
+    cancel_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=CANCEL_BTN)]], resize_keyboard=True)
+    await message.answer("Введи имя клиента:", reply_markup=cancel_kb)
 
 # ── Имя клиента ───────────────────────────────────────
 @dp.message(OrderForm.client_name)
 async def set_client_name(message: Message, state: FSMContext):
+    if message.text == CANCEL_BTN:
+        await cancel_order(message, state); return
     await state.update_data(client_name=message.text.strip())
     await state.set_state(OrderForm.client_phone)
-    await message.answer("Введи телефон клиента:")
+    cancel_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=CANCEL_BTN)]], resize_keyboard=True)
+    await message.answer("Введи телефон клиента:", reply_markup=cancel_kb)
 
 # ── Телефон ───────────────────────────────────────────
 @dp.message(OrderForm.client_phone)
 async def set_client_phone(message: Message, state: FSMContext):
+    if message.text == CANCEL_BTN:
+        await cancel_order(message, state); return
     await state.update_data(client_phone=message.text.strip())
     await state.set_state(OrderForm.delivery)
     await message.answer("Метод доставки:", reply_markup=make_keyboard(DELIVERY_OPTIONS))
@@ -119,31 +144,40 @@ async def set_client_phone(message: Message, state: FSMContext):
 # ── Доставка ──────────────────────────────────────────
 @dp.message(OrderForm.delivery)
 async def set_delivery(message: Message, state: FSMContext):
+    if message.text == CANCEL_BTN:
+        await cancel_order(message, state); return
     if message.text not in DELIVERY_OPTIONS:
         await message.answer("Выбери из списка:", reply_markup=make_keyboard(DELIVERY_OPTIONS))
         return
     await state.update_data(delivery=message.text)
+    cancel_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=CANCEL_BTN)]], resize_keyboard=True)
     if message.text == "Новая Почта":
         await state.set_state(OrderForm.nova_poshta)
-        await message.answer("Введи номер отделения НП:", reply_markup=ReplyKeyboardRemove())
+        await message.answer("Введи номер отделения НП:", reply_markup=cancel_kb)
     else:
         await state.set_state(OrderForm.adding_items)
         await message.answer(
             "Отлично! Теперь добавляй товары.\n\nВведи название или артикул для поиска:",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=cancel_kb
         )
 
 # ── Отделение НП ─────────────────────────────────────
 @dp.message(OrderForm.nova_poshta)
 async def set_nova_poshta(message: Message, state: FSMContext):
+    if message.text == CANCEL_BTN:
+        await cancel_order(message, state); return
     await state.update_data(nova_poshta=message.text.strip())
     await state.set_state(OrderForm.adding_items)
-    await message.answer("Введи название или артикул для поиска:")
+    cancel_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text=CANCEL_BTN)]], resize_keyboard=True)
+    await message.answer("Введи название или артикул для поиска:", reply_markup=cancel_kb)
 
 # ── Поиск товара ─────────────────────────────────────
 @dp.message(OrderForm.adding_items)
 async def search_item(message: Message, state: FSMContext):
     text = message.text.strip()
+
+    if text == CANCEL_BTN:
+        await cancel_order(message, state); return
 
     # Команды
     if text.lower() in ["готово", "✅ готово"]:
@@ -178,6 +212,9 @@ async def search_item(message: Message, state: FSMContext):
 async def select_item(message: Message, state: FSMContext):
     text = message.text.strip()
 
+    if text == CANCEL_BTN:
+        await cancel_order(message, state); return
+
     if text.lower() in ["готово", "✅ готово"]:
         await show_order_summary(message, state)
         return
@@ -211,6 +248,8 @@ async def select_item(message: Message, state: FSMContext):
 @dp.message(OrderForm.item_quantity)
 async def set_item_quantity(message: Message, state: FSMContext):
     text = message.text.strip()
+    if text == CANCEL_BTN:
+        await cancel_order(message, state); return
     if not text.isdigit() or int(text) < 1:
         await message.answer("Введи целое число, например: 2")
         return
@@ -229,6 +268,8 @@ async def set_item_quantity(message: Message, state: FSMContext):
 # ── Цена товара ───────────────────────────────────────
 @dp.message(OrderForm.item_price)
 async def set_item_price(message: Message, state: FSMContext):
+    if message.text.strip() == CANCEL_BTN:
+        await cancel_order(message, state); return
     text = message.text.strip().replace(",", ".")
     try:
         price = float(text)
