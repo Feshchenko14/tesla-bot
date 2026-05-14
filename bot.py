@@ -77,14 +77,14 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 # ── /start ──────────────────────────────────────────
-@dp.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
+@dp.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
     await state.clear()
     kb = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="🆕 Создать заказ")]],
         resize_keyboard=True
     )
-    await message.answer("Привет! Нажми кнопку чтобы создать заказ.", reply_markup=kb)
+    await message.answer("❌ Заказ отменён. Начни заново.", reply_markup=kb)
 
 # ── Создать заказ ────────────────────────────────────
 @dp.message(F.text == "🆕 Создать заказ")
