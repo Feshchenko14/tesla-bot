@@ -13,7 +13,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 # НАСТРОЙКИ - ЗАПОЛНИ СВОИ ДАННЫЕ
 # ==============================
 BOT_TOKEN = "8823108260:AAFUiFvspXvrsiuw0OuLuEajCxALXogshX0"
-GROUP_CHAT_ID = -5212251353  # Вставь ID своей группы
+GROUP_CHAT_ID = -1003987828582  # Вставь ID своей группы
 ROAPP_API_KEY = "16c119cfb495407bac606bd8055bc11e"
 ROAPP_API_URL = "https://api.roapp.io/v2"
 
